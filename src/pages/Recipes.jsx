@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { supabase } from '../supabaseClient';
 import { Plus, Star, Trash2, ChefHat, Clock, User, Edit2, X, Search, Filter, Loader, Image as ImageIcon, RefreshCw } from 'lucide-react';
 
 const CATEGORIES = [
@@ -32,6 +33,38 @@ const Recipes = () => {
     imageUrl: ''
   });
 
+  const uploadImageToSupabase = async (imageUrl, recipeId) => {
+    try {
+      // 1. Download image from AI URL (proxy might be needed if CORS issues arise, but often works directly or via backend)
+      // Note: Fetching directly from browser might fail due to CORS on OpenAI side. 
+      // If it fails, we might need a proxy. But let's try direct fetch first or assume a server function.
+      // Actually, for a pure client-side app, we often use a serverless function to proxy this.
+      // However, assuming standard behavior:
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      
+      const fileName = `${recipeId}-${Date.now()}.png`;
+      
+      // 2. Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('recipe-images')
+        .upload(fileName, blob);
+
+      if (error) throw error;
+
+      // 3. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('recipe-images')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Failed to upload image to Supabase:', error);
+      // Fallback: return original URL but warn
+      return imageUrl;
+    }
+  };
+
   const generateRecipeImage = async (recipeId, recipeName) => {
     if (!settings.apiToken || !settings.imageModel) return;
 
@@ -54,13 +87,7 @@ const Recipes = () => {
           model: settings.imageModel,
           prompt: prompt,
           n: 1,
-          size: "1024x1024" // Standard size, though user asked for specific ratio, most APIs take standard sizes. 
-                            // DALL-E 3 supports 1024x1024, 1024x1792 (portrait), 1792x1024 (landscape).
-                            // Since user asked for 16:9, 1792x1024 is closest for DALL-E 3 if supported.
-                            // For safety with generic APIs, we might default to 1024x1024 unless we know it supports others.
-                            // But let's try to send 1024x1024 as it is most compatible, and let the prompt handle composition.
-                            // Or if it is DALL-E 3 specifically, we can try standard sizes. 
-                            // Let's stick to 1024x1024 for compatibility or check if we can pass size.
+          size: "1024x1024"
         })
       });
 
@@ -71,17 +98,13 @@ const Recipes = () => {
       }
 
       if (data.data && data.data.length > 0) {
-        const imageUrl = data.data[0].url;
-        // Update the recipe with the new image URL
-        // We need to find the current recipe to preserve other fields, or just pass the partial update if supported.
-        // The updateRecipe function likely expects the full object or merges it. 
-        // Let's check AppContext again or just assume we need to merge.
-        // Actually, updateRecipe in AppContext: 
-        // const updateRecipe = (id, updatedRecipe) => {
-        //   setRecipes(prev => prev.map(recipe => recipe.id === id ? { ...recipe, ...updatedRecipe } : recipe));
-        // };
-        // So passing partial object is fine!
-        updateRecipe(recipeId, { imageUrl });
+        let imageUrl = data.data[0].url;
+        
+        // Try to persist the image to Supabase Storage
+        // We do this because AI generated links expire
+        const permanentUrl = await uploadImageToSupabase(imageUrl, recipeId);
+        
+        updateRecipe(recipeId, { imageUrl: permanentUrl });
       }
     } catch (error) {
       console.error('Image generation failed:', error);
@@ -95,7 +118,7 @@ const Recipes = () => {
     }
   };
 
-  const handleAddRecipe = (e) => {
+  const handleAddRecipe = async (e) => {
     e.preventDefault();
     if (!newRecipe.name) return;
     
@@ -104,7 +127,7 @@ const Recipes = () => {
       updateRecipe(editingId, newRecipe);
       recipeId = editingId;
     } else {
-      recipeId = addRecipe(newRecipe);
+      recipeId = await addRecipe(newRecipe);
     }
     
     // Trigger image generation if configured and no image exists (or we want to regenerate? 
@@ -112,7 +135,7 @@ const Recipes = () => {
     // The requirement says "when user saves recipe". 
     // If editing, maybe we don't want to overwrite existing image unless empty?
     // Let's generate if imageUrl is empty.
-    if (!newRecipe.imageUrl && settings.imageModel) {
+    if (!newRecipe.imageUrl && settings.imageModel && recipeId) {
       generateRecipeImage(recipeId, newRecipe.name);
     }
 

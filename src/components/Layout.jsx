@@ -1,9 +1,14 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Refrigerator, BookOpen, ChefHat, Settings, LayoutDashboard } from 'lucide-react';
+import { Refrigerator, BookOpen, ChefHat, Settings, LayoutDashboard, LogOut } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 const Layout = ({ children }) => {
   const location = useLocation();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: '首页' },
@@ -25,26 +30,37 @@ const Layout = ({ children }) => {
             <span className="font-serif tracking-tight text-gray-800">HomeCook<span className="text-orange-600">Hub</span></span>
           </Link>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                    isActive 
-                      ? 'bg-orange-50 text-orange-600 shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon size={18} className={isActive ? "stroke-[2.5px]" : "stroke-2"} />
-                  {item.label}
-                </Link>
-              );
-            })}
+          <div className="flex items-center gap-4">
+            {/* Desktop Nav */}
+            <div className="hidden md:flex items-center gap-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                      isActive 
+                        ? 'bg-orange-50 text-orange-600 shadow-sm' 
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon size={18} className={isActive ? "stroke-[2.5px]" : "stroke-2"} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+              title="退出登录"
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </div>
       </header>

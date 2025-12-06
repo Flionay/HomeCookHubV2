@@ -12,9 +12,9 @@ const Settings = () => {
     setFormData(settings);
   }, [settings]);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    updateSettings(formData);
+    await updateSettings(formData);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -70,7 +70,7 @@ const Settings = () => {
                 placeholder="sk-..."
               />
               <p className="text-xs text-gray-500">
-                Key 仅保存在本地浏览器中，不会上传到任何第三方服务器。
+                Key 将加密保存在云端数据库，供家庭成员共享使用。
               </p>
             </div>
 
