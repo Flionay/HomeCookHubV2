@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Snowflake, Sun, Calendar, Minus, Search } from 'lucide-react';
+import { Plus, Trash2, Snowflake, Sun, Calendar, Minus, Search, Edit2, RefreshCw, Loader2, Image as ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const LOCATIONS = [
@@ -21,10 +21,12 @@ const CATEGORIES = [
 ];
 
 const Inventory = () => {
-  const { inventory, addInventoryItem, removeInventoryItem, updateInventoryItem } = useApp();
+  const { inventory, addInventoryItem, removeInventoryItem, updateInventoryItem, settings } = useApp();
   const [isAdding, setIsAdding] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
   const [newItem, setNewItem] = useState({
     name: '',
@@ -48,6 +50,64 @@ const Inventory = () => {
       category: '蔬菜',
       expiry: ''
     });
+  };
+
+  const handleUpdateItem = async (e) => {
+    e.preventDefault();
+    if (!editingItem || !editingItem.name) return;
+    
+    try {
+        await updateInventoryItem(editingItem.id, {
+            name: editingItem.name,
+            image_url: editingItem.image_url
+        });
+        setEditingItem(null);
+    } catch (error) {
+        console.error("Failed to update item:", error);
+        alert("更新失败");
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!settings.apiToken) {
+      alert('请先在设置页面配置 AI API Token');
+      return;
+    }
+    
+    setIsGeneratingImage(true);
+    try {
+      const response = await fetch(`${settings.apiUrl}/images/generations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${settings.apiToken}`
+        },
+        body: JSON.stringify({
+          model: settings.imageModel || "dall-e-3",
+          prompt: `Generate a rendered image of ${editingItem.name}, one of the smallest counting units, 300x300 size (use suggested size) exquisite modeling, high-definition rendering always with gray 	
+#F5F5F5 background`,
+          n: 1,
+          size: "300x300"
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) {
+          throw new Error(data.error.message);
+      }
+      
+      if (data.data && data.data.length > 0) {
+          const imageUrl = data.data[0].url;
+          setEditingItem(prev => ({ ...prev, image_url: imageUrl }));
+      } else {
+          throw new Error("No image data received");
+      }
+    } catch (error) {
+      console.error('Image generation failed:', error);
+      alert(`生成失败: ${error.message}`);
+    } finally {
+      setIsGeneratingImage(false);
+    }
   };
 
   const adjustQuantity = (item, amount) => {
@@ -146,8 +206,12 @@ const Inventory = () => {
                 return (
                   <li key={item.id} className="flex gap-3 p-3 rounded-xl border border-gray-100 hover:border-orange-100 hover:shadow-sm transition-all bg-white group">
                     {/* Item Icon/Image Placeholder */}
-                    <div className="w-16 h-16 rounded-lg bg-gray-50 flex items-center justify-center text-2xl shrink-0">
-                      {CATEGORIES.find(c => c.id === item.category)?.icon || '📦'}
+                    <div className="w-16 h-16 rounded-lg bg-gray-50 flex items-center justify-center text-2xl shrink-0 overflow-hidden relative">
+                      {item.image_url ? (
+                         <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                         CATEGORIES.find(c => c.id === item.category)?.icon || '📦'
+                      )}
                     </div>
 
                     {/* Item Details */}
@@ -170,12 +234,22 @@ const Inventory = () => {
 
                       {/* Quantity Controls */}
                       <div className="flex items-center justify-between mt-2">
-                         <button
-                            onClick={() => removeInventoryItem(item.id)}
-                            className="text-gray-300 hover:text-red-500 transition-colors p-1 -ml-1"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                         <div className="flex items-center gap-1">
+                             <button
+                                onClick={() => setEditingItem(item)}
+                                className="text-gray-300 hover:text-orange-500 transition-colors p-1"
+                                title="编辑"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                             <button
+                                onClick={() => removeInventoryItem(item.id)}
+                                className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                                title="删除"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                         </div>
                           
                          <div className="flex items-center gap-2">
                            <button 
@@ -294,6 +368,67 @@ const Inventory = () => {
                 className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 active:scale-95 mt-2"
               >
                 确认添加
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Item Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-lg text-gray-800">编辑食材</h3>
+              <button onClick={() => setEditingItem(null)} className="text-gray-400 hover:text-gray-600">
+                <Minus size={20} className="rotate-45" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateItem} className="p-6 space-y-4">
+              <div className="flex flex-col items-center mb-4">
+                  <div className="w-24 h-24 rounded-xl bg-gray-50 border-2 border-dashed border-gray-200 flex items-center justify-center text-4xl relative overflow-hidden group">
+                      {editingItem.image_url ? (
+                          <img src={editingItem.image_url} alt={editingItem.name} className="w-full h-full object-cover" />
+                      ) : (
+                          CATEGORIES.find(c => c.id === editingItem.category)?.icon || '📦'
+                      )}
+                      
+                      {isGeneratingImage && (
+                          <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                              <Loader2 className="animate-spin text-orange-500" size={24} />
+                          </div>
+                      )}
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleGenerateImage}
+                    disabled={isGeneratingImage}
+                    className="mt-2 text-xs flex items-center gap-1 text-orange-600 hover:text-orange-700 font-medium px-3 py-1.5 bg-orange-50 rounded-full hover:bg-orange-100 transition-colors"
+                  >
+                    <RefreshCw size={12} className={isGeneratingImage ? "animate-spin" : ""} />
+                    {isGeneratingImage ? "正在生成..." : "生成精美模型图"}
+                  </button>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">名称</label>
+                <input
+                  type="text"
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50"
+                  placeholder="例如：土豆"
+                  autoFocus
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 active:scale-95 mt-2"
+              >
+                保存修改
               </button>
             </form>
           </div>

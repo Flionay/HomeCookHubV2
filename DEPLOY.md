@@ -107,6 +107,43 @@ docker run -d \
 
 ---
 
+## 🍎 Mac M1/M2/M3 用户特别说明 (跨平台构建)
+
+如果你是在 **Apple Silicon (M1/M2/M3)** 芯片的 Mac 上构建镜像，并打算部署到 **普通的 Linux 服务器 (x86_64/amd64)**，你**必须**指定目标平台，否则构建出的镜像在服务器上无法运行（会报错 `exec format error`）。
+
+### 方式一：使用 Docker Compose (构建时)
+
+修改 `docker-compose.yml`，在 `app` 服务下添加 `platform` 字段：
+
+```yaml
+services:
+  app:
+    platform: linux/amd64  # <--- 添加这行
+    build:
+      # ...
+```
+
+然后正常运行 `docker-compose build` 即可。
+
+### 方式二：使用 Docker Buildx (推荐)
+
+使用 `--platform` 参数进行构建：
+
+```bash
+# 确保先加载环境变量
+export $(cat .env | xargs)
+
+docker buildx build --platform linux/amd64 \
+  --build-arg VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+  --build-arg VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+  --build-arg VITE_WEATHER_KEY=$VITE_WEATHER_KEY \
+  -t homecookhub-x86 . --load
+```
+
+> 注意：跨平台构建速度会比本地构建慢很多，因为涉及指令集转译。
+
+---
+
 ## 🔧 高级配置
 
 ### 修改端口

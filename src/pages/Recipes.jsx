@@ -71,7 +71,7 @@ const Recipes = () => {
     setGeneratingImages(prev => ({ ...prev, [recipeId]: true }));
 
     try {
-      const prompt = `生成一张${recipeName}菜品的高清建模图，画面比例是16:9 菜品新鲜，色泽亮丽，秀色可餐，灯光温和，氛围感，4k。菜品简介：${recipeNotes || '无'}`;
+      const prompt = `生成一张${recipeName}菜品的高清建模图，画面比例是16:9 500x250 菜品新鲜，色泽亮丽，秀色可餐，灯光温和，氛围感，4k。菜品简介：${recipeNotes || '无'}`;
       
       // Handle trailing slash in apiUrl
       const baseUrl = settings.apiUrl.endsWith('/') ? settings.apiUrl.slice(0, -1) : settings.apiUrl;
@@ -87,7 +87,7 @@ const Recipes = () => {
           model: settings.imageModel,
           prompt: prompt,
           n: 1,
-          size: "1024x1024"
+          size: "500x250"
         })
       });
 
@@ -327,9 +327,9 @@ const Recipes = () => {
             </div>
 
             <form onSubmit={handleAddRecipe} className="p-6 space-y-6">
-              {/* Image Preview & Regenerate */}
-              <div className="flex items-center justify-center mb-4">
-                <div className="relative w-full aspect-video bg-gray-100 rounded-xl overflow-hidden group">
+              {/* Image Preview */}
+              <div className="flex flex-col items-center justify-center mb-4 gap-3">
+                <div className="relative w-full aspect-video bg-gray-100 rounded-xl overflow-hidden group shadow-inner">
                   {newRecipe.imageUrl ? (
                     <img 
                       src={newRecipe.imageUrl} 
@@ -342,31 +342,29 @@ const Recipes = () => {
                       <span className="text-sm">暂无图片</span>
                     </div>
                   )}
-                  
-                  {/* AI Generate Button - Only show if configured */}
-                  {settings.imageModel && editingId && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button
-                         type="button"
-                         disabled={generatingImages[editingId]}
-                         onClick={() => generateRecipeImage(editingId, newRecipe.name, newRecipe.notes)}
-                         className="bg-white text-orange-600 px-4 py-2 rounded-full font-bold flex items-center gap-2 hover:scale-105 transition-transform"
-                       >
-                         {generatingImages[editingId] ? (
-                           <>
-                             <Loader size={16} className="animate-spin" />
-                             生成中...
-                           </>
-                         ) : (
-                           <>
-                             <RefreshCw size={16} />
-                             重新生成图片
-                           </>
-                         )}
-                       </button>
-                    </div>
-                  )}
                 </div>
+
+                {/* AI Generate Button - Standalone */}
+                {settings.imageModel && editingId && (
+                   <button
+                     type="button"
+                     disabled={generatingImages[editingId]}
+                     onClick={() => generateRecipeImage(editingId, newRecipe.name, newRecipe.notes)}
+                     className="w-full bg-orange-50 text-orange-600 border border-orange-200 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-orange-100 transition-all active:scale-95"
+                   >
+                     {generatingImages[editingId] ? (
+                       <>
+                         <Loader size={18} className="animate-spin" />
+                         <span>AI 正在生成美味画面...</span>
+                       </>
+                     ) : (
+                       <>
+                         <RefreshCw size={18} />
+                         <span>{newRecipe.imageUrl ? '不满意？重新生成图片' : 'AI 生成美味图片'}</span>
+                       </>
+                     )}
+                   </button>
+                )}
               </div>
 
               <div className="space-y-2">

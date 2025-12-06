@@ -10,6 +10,7 @@ create table if not exists public.inventory (
   location text,
   category text,
   expiry text,
+  image_url text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
