@@ -103,6 +103,22 @@ const Settings = () => {
               </p>
             </div>
 
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                分享图生成模型 (Share Image Model)
+              </label>
+              <input
+                type="text"
+                value={formData.shareImageModel || ''}
+                onChange={(e) => setFormData({ ...formData, shareImageModel: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-gray-50 transition-all font-mono text-sm"
+                placeholder="gemini-1.5-pro"
+              />
+              <p className="text-xs text-gray-500">
+                用于生成高质量海报式分享图 (Gemini 3 Pro 等)。
+              </p>
+            </div>
+
             <div className="pt-4 flex items-center justify-between border-t border-gray-50 mt-6">
               {saved ? (
                 <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1.5 rounded-lg animate-in fade-in">

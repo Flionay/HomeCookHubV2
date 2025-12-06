@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Refrigerator, BookOpen, ChefHat, Settings, LayoutDashboard, LogOut } from 'lucide-react';
+import { Refrigerator, BookOpen, ChefHat, Settings, LayoutDashboard, LogOut, Camera, UtensilsCrossed } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import CookingCart from './CookingCart';
 
 const Layout = ({ children }) => {
   const location = useLocation();
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -15,7 +17,7 @@ const Layout = ({ children }) => {
     { path: '/inventory', icon: Refrigerator, label: '食材' },
     { path: '/recipes', icon: BookOpen, label: '菜谱' },
     { path: '/ai-chef', icon: ChefHat, label: '主厨' },
-    { path: '/settings', icon: Settings, label: '设置' },
+    { path: '/memories', icon: Camera, label: '回忆' },
   ];
 
   return (
@@ -92,6 +94,20 @@ const Layout = ({ children }) => {
           })}
         </div>
       </nav>
+
+      {/* Cooking Cart FAB */}
+      <button
+        onClick={() => setIsCartOpen(true)}
+        className="fixed bottom-24 md:bottom-10 right-6 z-40 bg-gray-900 text-white p-4 rounded-full shadow-xl shadow-gray-400/50 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group"
+      >
+        <UtensilsCrossed size={24} className="group-hover:rotate-12 transition-transform" />
+        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-medium whitespace-nowrap">
+          今晚吃什么
+        </span>
+      </button>
+
+      {/* Cooking Cart Modal */}
+      <CookingCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </div>
   );
 };

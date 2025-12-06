@@ -18,8 +18,11 @@ export const AppProvider = ({ children }) => {
     apiUrl: 'https://api.openai.com/v1',
     apiToken: '',
     model: 'gpt-3.5-turbo',
-    imageModel: 'dall-e-3'
+    imageModel: 'dall-e-3',
+    shareImageModel: 'dall-e-3'
   });
+
+  const [cookingLogs, setCookingLogs] = useState([]);
 
   // Handle Auth Session
   useEffect(() => {
@@ -66,14 +69,16 @@ export const AppProvider = ({ children }) => {
             apiUrl: settingsData.api_url,
             apiToken: settingsData.api_token,
             model: settingsData.model,
-            imageModel: settingsData.image_model
+            imageModel: settingsData.image_model,
+            shareImageModel: settingsData.share_image_model || 'dall-e-3'
           });
         } else if (settingsError && settingsError.code === 'PGRST116') {
            // No settings found, create default
            const defaultSettings = {
              api_url: 'https://api.openai.com/v1',
              model: 'gpt-3.5-turbo',
-             image_model: 'dall-e-3'
+             image_model: 'dall-e-3',
+             share_image_model: 'dall-e-3'
            };
            const { data: newSettings } = await supabase
              .from('settings')
@@ -87,9 +92,20 @@ export const AppProvider = ({ children }) => {
                apiUrl: newSettings.api_url,
                apiToken: newSettings.api_token,
                model: newSettings.model,
-               imageModel: newSettings.image_model
+               imageModel: newSettings.image_model,
+               shareImageModel: newSettings.share_image_model
              });
            }
+        }
+
+        // Fetch Cooking Logs
+        const { data: logsData, error: logsError } = await supabase
+          .from('cooking_logs')
+          .select('*')
+          .order('date', { ascending: false });
+        
+        if (!logsError && logsData) {
+          setCookingLogs(logsData);
         }
 
         // Fetch Inventory
@@ -272,7 +288,8 @@ export const AppProvider = ({ children }) => {
         api_url: newSettings.apiUrl,
         api_token: newSettings.apiToken,
         model: newSettings.model,
-        image_model: newSettings.imageModel
+        image_model: newSettings.imageModel,
+        share_image_model: newSettings.shareImageModel
       };
 
       if (newSettings.id) {
@@ -297,12 +314,51 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const addCookingLog = async (logData) => {
+    if (!session) return;
+    try {
+      // Convert camelCase to snake_case for DB
+      const dbLog = {
+        meal_name: logData.mealName,
+        menu: logData.menu,
+        ingredients: logData.ingredients,
+        mood_text: logData.moodText,
+        image_url: logData.imageUrl,
+        tags: logData.tags,
+        date: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('cooking_logs')
+        .insert([dbLog])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const newLog = {
+          ...data,
+          mealName: data.meal_name,
+          moodText: data.mood_text,
+          imageUrl: data.image_url
+        };
+        setCookingLogs(prev => [newLog, ...prev]);
+        return newLog;
+      }
+    } catch (error) {
+      console.error('Error adding cooking log:', error);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     session,
     inventory,
     recipes,
     settings,
+    cookingLogs,
     loading,
     addInventoryItem,
     removeInventoryItem,
@@ -310,7 +366,8 @@ export const AppProvider = ({ children }) => {
     addRecipe,
     removeRecipe,
     updateRecipe,
-    updateSettings
+    updateSettings,
+    addCookingLog
   };
 
   return (

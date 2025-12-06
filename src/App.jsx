@@ -7,6 +7,7 @@ import Inventory from './pages/Inventory';
 import Recipes from './pages/Recipes';
 import AIChef from './pages/AIChef';
 import Settings from './pages/Settings';
+import Memories from './pages/Memories';
 import Login from './pages/Login';
 
 const AppRoutes = () => {
@@ -28,6 +29,7 @@ const AppRoutes = () => {
       <Route path="/inventory" element={session ? <Layout><Inventory /></Layout> : <Navigate to="/login" />} />
       <Route path="/recipes" element={session ? <Layout><Recipes /></Layout> : <Navigate to="/login" />} />
       <Route path="/ai-chef" element={session ? <Layout><AIChef /></Layout> : <Navigate to="/login" />} />
+      <Route path="/memories" element={session ? <Layout><Memories /></Layout> : <Navigate to="/login" />} />
       <Route path="/settings" element={session ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
     </Routes>
   );

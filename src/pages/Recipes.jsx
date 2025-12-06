@@ -65,13 +65,13 @@ const Recipes = () => {
     }
   };
 
-  const generateRecipeImage = async (recipeId, recipeName) => {
+  const generateRecipeImage = async (recipeId, recipeName, recipeNotes) => {
     if (!settings.apiToken || !settings.imageModel) return;
 
     setGeneratingImages(prev => ({ ...prev, [recipeId]: true }));
 
     try {
-      const prompt = `生成一张${recipeName}菜品的高清建模图，画面比例是16:9 菜品新鲜，秀色可餐，灯光温和，氛围感，4k`;
+      const prompt = `生成一张${recipeName}菜品的高清建模图，画面比例是16:9 菜品新鲜，色泽亮丽，秀色可餐，灯光温和，氛围感，4k。菜品简介：${recipeNotes || '无'}`;
       
       // Handle trailing slash in apiUrl
       const baseUrl = settings.apiUrl.endsWith('/') ? settings.apiUrl.slice(0, -1) : settings.apiUrl;
@@ -136,7 +136,7 @@ const Recipes = () => {
     // If editing, maybe we don't want to overwrite existing image unless empty?
     // Let's generate if imageUrl is empty.
     if (!newRecipe.imageUrl && settings.imageModel && recipeId) {
-      generateRecipeImage(recipeId, newRecipe.name);
+      generateRecipeImage(recipeId, newRecipe.name, newRecipe.notes);
     }
 
     resetForm();
@@ -259,19 +259,7 @@ const Recipes = () => {
                       </div>
                     )}
 
-                    {/* Regenerate Button */}
-                    {settings.imageModel && !generatingImages[recipe.id] && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          generateRecipeImage(recipe.id, recipe.name);
-                        }}
-                        className="absolute top-2 right-2 p-2 bg-black/40 backdrop-blur-sm text-white rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-orange-600 hover:scale-110"
-                        title="AI 生成/重新生成图片"
-                      >
-                        <RefreshCw size={14} />
-                      </button>
-                    )}
+                    {/* Regenerate Button Removed from here */}
                   </div>
 
                   <div className="flex justify-between items-start mb-2">
@@ -339,6 +327,48 @@ const Recipes = () => {
             </div>
 
             <form onSubmit={handleAddRecipe} className="p-6 space-y-6">
+              {/* Image Preview & Regenerate */}
+              <div className="flex items-center justify-center mb-4">
+                <div className="relative w-full aspect-video bg-gray-100 rounded-xl overflow-hidden group">
+                  {newRecipe.imageUrl ? (
+                    <img 
+                      src={newRecipe.imageUrl} 
+                      alt={newRecipe.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                      <ImageIcon size={48} className="mb-2 opacity-50" />
+                      <span className="text-sm">暂无图片</span>
+                    </div>
+                  )}
+                  
+                  {/* AI Generate Button - Only show if configured */}
+                  {settings.imageModel && editingId && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button
+                         type="button"
+                         disabled={generatingImages[editingId]}
+                         onClick={() => generateRecipeImage(editingId, newRecipe.name, newRecipe.notes)}
+                         className="bg-white text-orange-600 px-4 py-2 rounded-full font-bold flex items-center gap-2 hover:scale-105 transition-transform"
+                       >
+                         {generatingImages[editingId] ? (
+                           <>
+                             <Loader size={16} className="animate-spin" />
+                             生成中...
+                           </>
+                         ) : (
+                           <>
+                             <RefreshCw size={16} />
+                             重新生成图片
+                           </>
+                         )}
+                       </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase">菜名</label>
                 <input

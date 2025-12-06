@@ -33,19 +33,35 @@ create table if not exists public.settings (
   api_token text,
   model text default 'gpt-3.5-turbo',
   image_model text default 'dall-e-3',
+  share_image_model text default 'dall-e-3', -- New field for share image model
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Create cooking_logs table (for timeline/memories)
+create table if not exists public.cooking_logs (
+  id uuid default uuid_generate_v4() primary key,
+  date timestamp with time zone default timezone('utc'::text, now()) not null,
+  meal_name text not null,
+  menu jsonb, -- Store detailed menu structure { dishes: [], soups: [], staples: [] }
+  ingredients text[], -- Array of ingredient names used
+  mood_text text, -- AI generated warm text or user note
+  image_url text, -- URL of the memory card image or food photo
+  tags text[], -- e.g. ["dinner", "healthy"]
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 -- Enable Row Level Security (RLS)
 alter table public.inventory enable row level security;
 alter table public.recipes enable row level security;
 alter table public.settings enable row level security;
+alter table public.cooking_logs enable row level security;
 
 -- Policies
 -- We drop existing policies first to ensure we can re-run this script cleanly if needed
 drop policy if exists "Inventory access" on public.inventory;
 drop policy if exists "Recipes access" on public.recipes;
 drop policy if exists "Settings access" on public.settings;
+drop policy if exists "Cooking logs access" on public.cooking_logs;
 drop policy if exists "Public inventory access" on public.inventory;
 drop policy if exists "Public recipes access" on public.recipes;
 
@@ -65,31 +81,12 @@ on public.settings for all
 to authenticated
 using (true);
 
+create policy "Cooking logs access"
+on public.cooking_logs for all
+to authenticated
+using (true);
+
 -- Optional: Insert a default settings row if it doesn't exist
-insert into public.settings (api_url, model, image_model)
-select 'https://api.openai.com/v1', 'gpt-3.5-turbo', 'dall-e-3'
+insert into public.settings (api_url, model, image_model, share_image_model)
+select 'https://api.openai.com/v1', 'gpt-3.5-turbo', 'dall-e-3', 'dall-e-3'
 where not exists (select 1 from public.settings);
-
--- Storage Setup
--- Note: Storage buckets usually need to be created via the Supabase Dashboard or API,
--- but we can set policies here if the bucket exists.
--- We will provide instructions to create the 'recipe-images' bucket.
-
--- Policy to allow authenticated users to upload images
--- Note: You need to create a bucket named 'recipe-images' in Supabase Storage first.
--- The following SQL assumes the bucket exists. 
--- If you run this without the bucket, it might fail or just do nothing useful until bucket is created.
-
--- Enable storage policies (This is a bit tricky in SQL editor as it depends on the `storage` schema)
--- Generally, you do this in the Storage UI, but here is the SQL equivalent for reference:
-
--- Allow public read access to recipe-images
--- create policy "Public Access"
--- on storage.objects for select
--- using ( bucket_id = 'recipe-images' );
-
--- Allow authenticated users to upload
--- create policy "Authenticated Upload"
--- on storage.objects for insert
--- to authenticated
--- with check ( bucket_id = 'recipe-images' );
