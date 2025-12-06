@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Settings as SettingsIcon, Calendar, Clock, ChefHat, Camera } from 'lucide-react';
+import { Settings as SettingsIcon, Calendar, Clock, ChefHat, Camera, X, Download, Share2, ZoomIn } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Memories = () => {
   const { cookingLogs, user } = useApp();
   const [showSettingsHint, setShowSettingsHint] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -22,6 +23,45 @@ const Memories = () => {
       hour: '2-digit',
       minute: '2-digit'
     }).format(date);
+  };
+
+  const handleDownload = async (imageUrl, fileName) => {
+      try {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName || 'memory-image.jpg';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+      } catch (error) {
+          console.error('Download failed:', error);
+          alert('下载失败，请重试');
+      }
+  };
+
+  const handleShare = async (imageUrl, title) => {
+      if (navigator.share) {
+          try {
+              await navigator.share({
+                  title: title || '温馨食光',
+                  text: '看看我做的美食！',
+                  url: imageUrl
+              });
+          } catch (error) {
+              console.error('Share failed:', error);
+          }
+      } else {
+          // Fallback for browsers that don't support Web Share API
+          navigator.clipboard.writeText(imageUrl).then(() => {
+              alert('图片链接已复制到剪贴板');
+          }, (err) => {
+              console.error('Async: Could not copy text: ', err);
+          });
+      }
   };
 
   return (
@@ -84,13 +124,21 @@ const Memories = () => {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-md transition-shadow">
                   <div className="md:flex">
                     {/* Image Section */}
-                    <div className="md:w-1/3 aspect-[4/3] md:aspect-auto relative overflow-hidden bg-gray-100">
+                    <div 
+                        className="md:w-1/3 aspect-[4/3] md:aspect-auto relative overflow-hidden bg-gray-100 cursor-zoom-in"
+                        onClick={() => log.image_url && setPreviewImage({ url: log.image_url, title: log.meal_name })}
+                    >
                       {log.image_url ? (
-                        <img 
-                          src={log.image_url} 
-                          alt={log.meal_name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                        />
+                        <>
+                            <img 
+                              src={log.image_url} 
+                              alt={log.meal_name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <ZoomIn className="text-white drop-shadow-md" size={32} />
+                            </div>
+                        </>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300">
                           <ChefHat size={40} />
@@ -153,6 +201,55 @@ const Memories = () => {
           </div>
         )}
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={() => setPreviewImage(null)}
+        >
+            <div 
+                className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Toolbar */}
+                <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+                     <button 
+                        onClick={() => handleShare(previewImage.url, previewImage.title)}
+                        className="bg-white/20 hover:bg-white/40 text-white p-2 rounded-full backdrop-blur-sm transition-all"
+                        title="分享"
+                    >
+                        <Share2 size={20} />
+                    </button>
+                    <button 
+                        onClick={() => handleDownload(previewImage.url, `${previewImage.title}.jpg`)}
+                        className="bg-white/20 hover:bg-white/40 text-white p-2 rounded-full backdrop-blur-sm transition-all"
+                        title="下载"
+                    >
+                        <Download size={20} />
+                    </button>
+                    <button 
+                        onClick={() => setPreviewImage(null)}
+                        className="bg-white/20 hover:bg-white/40 text-white p-2 rounded-full backdrop-blur-sm transition-all"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Image */}
+                <img 
+                    src={previewImage.url} 
+                    alt={previewImage.title} 
+                    className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                />
+                
+                {/* Caption */}
+                <div className="mt-4 text-white/90 font-medium text-lg">
+                    {previewImage.title}
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
