@@ -267,8 +267,9 @@ const CookingCart = ({ isOpen, onClose }) => {
          }
       }
 
-      // 4. Generate Mood Text (AI)
+      // 4. Generate Mood Text & Tags (AI)
       let moodText = "烟火气，是家里最温暖的味道。";
+      let aiTags = [];
 
       if (settings.apiToken) {
         try {
@@ -277,17 +278,20 @@ const CookingCart = ({ isOpen, onClose }) => {
           const menuText = [...menu.dishes, ...menu.soups, ...menu.staples].join('、');
           
           const textPrompt = `
-          请根据以下信息，生成一句简短温馨的做饭/吃饭心情语录。
+          请根据以下信息，生成本次烹饪的心情语录和标签。
           
           当前时间：${timeText} (${mealType})
           ${weatherText ? `天气：${weatherText}` : ''}
           今日菜单：${menuText}
           使用了食材：${ingredientNames.join('、')}
           
-          要求：
-          1. 只有一句话，非常简短，严格限制在10个字以内。
-          2. 结合天气（如果有）和菜品，体现家的温馨、治愈感。
-          3. 不要包含任何解释性文字，不要引号，直接输出语录内容。
+          请返回标准的 JSON 格式，不要包含Markdown标记（如 \`\`\`json），包含以下两个字段：
+          1. "mood_text": 一句简短温馨的心情语录（15字以内）。
+          2. "tags": 一个包含3-4个标签的数组。标签应包含：
+             - 天气/氛围感（如"雨天治愈"、"冬日暖阳"）
+             - 能量/营养估算（如"高蛋白"、"低卡轻食"、"约600卡"）
+             - 菜品特色（如"家常味"、"快手菜"）
+             - 标签要简短（4字以内）。
           `;
 
           const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -299,17 +303,28 @@ const CookingCart = ({ isOpen, onClose }) => {
               body: JSON.stringify({
                 model: settings.model || 'gpt-3.5-turbo',
                 messages: [
-                    { role: "system", content: "你是一个热爱生活、擅长烹饪的生活家。" },
+                    { role: "system", content: "你是一个热爱生活、擅长烹饪的生活家。请只返回纯 JSON 字符串。" },
                     { role: "user", content: textPrompt }
                 ],
                 temperature: 0.7,
-                max_tokens: 60
+                max_tokens: 200
               })
           });
 
           const data = await response.json();
           if (data.choices && data.choices.length > 0) {
-              moodText = data.choices[0].message.content.trim().replace(/['"]/g, '');
+              const content = data.choices[0].message.content.trim();
+              // Try to parse JSON, handling potential markdown code blocks
+              const jsonStr = content.replace(/^```json\s*|\s*```$/g, '');
+              try {
+                  const parsed = JSON.parse(jsonStr);
+                  if (parsed.mood_text) moodText = parsed.mood_text;
+                  if (parsed.tags && Array.isArray(parsed.tags)) aiTags = parsed.tags;
+              } catch (e) {
+                  console.error("Failed to parse AI response", e);
+                  // Fallback: try to extract text if JSON parse fails
+                  moodText = content.split('\n')[0].replace(/['"]/g, '').slice(0, 15);
+              }
           }
         } catch (error) {
           console.error('Failed to generate mood text:', error);
@@ -323,7 +338,7 @@ const CookingCart = ({ isOpen, onClose }) => {
         ingredients: ingredientNames,
         moodText,
         imageUrl,
-        tags: [mealType, '家庭料理']
+        tags: aiTags.length > 0 ? [mealType, ...aiTags] : [mealType, '家庭料理']
       };
 
       setGeneratedResult(result);

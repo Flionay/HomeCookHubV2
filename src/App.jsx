@@ -11,7 +11,7 @@ import Memories from './pages/Memories';
 import Login from './pages/Login';
 
 const AppRoutes = () => {
-  const { session, loading } = useApp();
+  const { user, loading } = useApp();
 
   if (loading) {
     return (
@@ -23,14 +23,14 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+      <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
       
-      <Route path="/" element={session ? <Layout><Dashboard /></Layout> : <Navigate to="/login" />} />
-      <Route path="/inventory" element={session ? <Layout><Inventory /></Layout> : <Navigate to="/login" />} />
-      <Route path="/recipes" element={session ? <Layout><Recipes /></Layout> : <Navigate to="/login" />} />
-      <Route path="/ai-chef" element={session ? <Layout><AIChef /></Layout> : <Navigate to="/login" />} />
-      <Route path="/memories" element={session ? <Layout><Memories /></Layout> : <Navigate to="/login" />} />
-      <Route path="/settings" element={session ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
+      <Route path="/" element={user ? <Layout><Dashboard /></Layout> : <Navigate to="/login" />} />
+      <Route path="/inventory" element={user ? <Layout><Inventory /></Layout> : <Navigate to="/login" />} />
+      <Route path="/recipes" element={user ? <Layout><Recipes /></Layout> : <Navigate to="/login" />} />
+      <Route path="/ai-chef" element={user ? <Layout><AIChef /></Layout> : <Navigate to="/login" />} />
+      <Route path="/memories" element={user ? <Layout><Memories /></Layout> : <Navigate to="/login" />} />
+      <Route path="/settings" element={user ? <Layout><Settings /></Layout> : <Navigate to="/login" />} />
     </Routes>
   );
 };

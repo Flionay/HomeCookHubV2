@@ -1,14 +1,33 @@
 version: '3.8'
 
 services:
-  app:
+  backend:
+    platform: linux/amd64
+    build: 
+      context: ./backend
+    volumes:
+      # Map host ./data to container /app/data (Database persistence)
+      - ./data:/app/data
+      # Map host ./static_uploads to container /app/static (Image persistence)
+      - ./static_uploads:/app/static
+    environment:
+      - DB_PATH=/app/data/homecook.db
+      - STATIC_DIR=/app/static
+      - STATIC_IMAGE_DIR=/app/static/images
+      - APP_BASE_URL=
+    ports:
+      - "8000:8000"
+    restart: always
+
+  frontend:
     platform: linux/amd64
     build:
       context: .
       args:
-        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
-        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
         - VITE_WEATHER_KEY=${VITE_WEATHER_KEY}
+        - VITE_API_URL=/
     ports:
       - "8080:80"
+    depends_on:
+      - backend
     restart: always

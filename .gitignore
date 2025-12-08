@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 .env
 *.tar
+init_db.py
+*.db

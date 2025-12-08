@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { supabase } from '../supabaseClient';
 import { Plus, Star, Trash2, ChefHat, Clock, User, Edit2, X, Search, Filter, Loader, Image as ImageIcon, RefreshCw } from 'lucide-react';
 
 const CATEGORIES = [
@@ -33,49 +32,22 @@ const Recipes = () => {
     imageUrl: ''
   });
 
-  const uploadImageToSupabase = async (imageUrl, recipeId) => {
-    try {
-      // 1. Download image from AI URL (proxy might be needed if CORS issues arise, but often works directly or via backend)
-      // Note: Fetching directly from browser might fail due to CORS on OpenAI side. 
-      // If it fails, we might need a proxy. But let's try direct fetch first or assume a server function.
-      // Actually, for a pure client-side app, we often use a serverless function to proxy this.
-      // However, assuming standard behavior:
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      
-      const fileName = `${recipeId}-${Date.now()}.png`;
-      
-      // 2. Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('recipe-images')
-        .upload(fileName, blob);
-
-      if (error) throw error;
-
-      // 3. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('recipe-images')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error('Failed to upload image to Supabase:', error);
-      // Fallback: return original URL but warn
-      return imageUrl;
-    }
-  };
-
   const generateRecipeImage = async (recipeId, recipeName, recipeNotes) => {
     if (!settings.apiToken || !settings.imageModel) return;
 
     setGeneratingImages(prev => ({ ...prev, [recipeId]: true }));
 
     try {
-      const prompt = `生成一张${recipeName}菜品的高清建模图，画面比例是16:9 500x250 菜品新鲜，色泽亮丽，秀色可餐，灯光温和，氛围感，4k。菜品简介：${recipeNotes || '无'}`;
+      const prompt = `Delicious photo of dish ${recipeName}, professional food photography, 4k, warm lighting. Notes: ${recipeNotes || 'None'}`;
       
       // Handle trailing slash in apiUrl
       const baseUrl = settings.apiUrl.endsWith('/') ? settings.apiUrl.slice(0, -1) : settings.apiUrl;
       const url = `${baseUrl}/images/generations`;
+
+      const model = settings.imageModel || "dall-e-2";
+      // DALL-E 3 requires 1024x1024 minimum
+      const isDalle3 = model.toLowerCase().includes("dall-e-3");
+      const size = isDalle3 ? "1024x1024" : "512x512";
 
       const response = await fetch(url, {
         method: 'POST',
@@ -84,10 +56,10 @@ const Recipes = () => {
           'Authorization': `Bearer ${settings.apiToken}`
         },
         body: JSON.stringify({
-          model: settings.imageModel,
+          model: model,
           prompt: prompt,
           n: 1,
-          size: "500x250"
+          size: size
         })
       });
 
@@ -100,11 +72,9 @@ const Recipes = () => {
       if (data.data && data.data.length > 0) {
         let imageUrl = data.data[0].url;
         
-        // Try to persist the image to Supabase Storage
-        // We do this because AI generated links expire
-        const permanentUrl = await uploadImageToSupabase(imageUrl, recipeId);
-        
-        updateRecipe(recipeId, { imageUrl: permanentUrl });
+        // Update recipe with image URL
+        // In a real app, we might want to proxy/cache this image
+        updateRecipe(recipeId, { imageUrl: imageUrl });
       }
     } catch (error) {
       console.error('Image generation failed:', error);

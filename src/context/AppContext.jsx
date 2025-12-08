@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { auth, inventory as inventoryApi, recipes as recipesApi, settings as settingsApi, cookingLogs as cookingLogsApi } from '../apiClient';
 
 const AppContext = createContext();
 
@@ -9,7 +9,6 @@ export const useApp = () => {
 
 export const AppProvider = ({ children }) => {
   // State
-  const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
@@ -24,29 +23,31 @@ export const AppProvider = ({ children }) => {
 
   const [cookingLogs, setCookingLogs] = useState([]);
 
-  // Handle Auth Session
+  // Initialize Auth
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const initAuth = async () => {
+      const token = localStorage.getItem('access_token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (token && storedUser) {
+        try {
+          // Verify token by fetching user profile
+          const userData = await auth.getUser();
+          setUser(userData);
+        } catch (error) {
+          console.error("Session invalid:", error);
+          auth.logout();
+          setUser(null);
+        }
+      }
       setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    };
+    initAuth();
   }, []);
 
-  // Fetch data when session exists
+  // Fetch data when user exists
   useEffect(() => {
-    if (!session) {
-      // Clear data if logged out
+    if (!user) {
       setInventory([]);
       setRecipes([]);
       return;
@@ -57,81 +58,51 @@ export const AppProvider = ({ children }) => {
         setLoading(true);
         
         // Fetch Settings
-        const { data: settingsData, error: settingsError } = await supabase
-          .from('settings')
-          .select('*')
-          .limit(1)
-          .single();
-
-        if (!settingsError && settingsData) {
-          setSettings({
-            id: settingsData.id, // Keep ID for updates
-            apiUrl: settingsData.api_url,
-            apiToken: settingsData.api_token,
-            model: settingsData.model,
-            imageModel: settingsData.image_model,
-            shareImageModel: settingsData.share_image_model || 'dall-e-3'
-          });
-        } else if (settingsError && settingsError.code === 'PGRST116') {
-           // No settings found, create default
-           const defaultSettings = {
-             api_url: 'https://api.openai.com/v1',
-             model: 'gpt-3.5-turbo',
-             image_model: 'dall-e-3',
-             share_image_model: 'dall-e-3'
-           };
-           const { data: newSettings } = await supabase
-             .from('settings')
-             .insert([defaultSettings])
-             .select()
-             .single();
-             
-           if (newSettings) {
-             setSettings({
-               id: newSettings.id,
-               apiUrl: newSettings.api_url,
-               apiToken: newSettings.api_token,
-               model: newSettings.model,
-               imageModel: newSettings.image_model,
-               shareImageModel: newSettings.share_image_model
-             });
-           }
+        try {
+            const settingsData = await settingsApi.get();
+            if (settingsData) {
+              setSettings({
+                id: settingsData.id,
+                apiUrl: settingsData.api_url,
+                apiToken: settingsData.api_token,
+                model: settingsData.model,
+                imageModel: settingsData.image_model,
+                shareImageModel: settingsData.share_image_model || 'dall-e-3'
+              });
+            }
+        } catch (e) {
+            console.error("Error fetching settings", e);
         }
 
         // Fetch Cooking Logs
-        const { data: logsData, error: logsError } = await supabase
-          .from('cooking_logs')
-          .select('*')
-          .order('date', { ascending: false });
-        
-        if (!logsError && logsData) {
-          setCookingLogs(logsData);
+        try {
+            const logsData = await cookingLogsApi.getAll();
+            setCookingLogs(logsData || []);
+        } catch (e) {
+            console.error("Error fetching logs", e);
         }
 
         // Fetch Inventory
-        const { data: inventoryData, error: inventoryError } = await supabase
-          .from('inventory')
-          .select('*')
-          .order('created_at', { ascending: true });
-          
-        if (inventoryError) throw inventoryError;
-        setInventory(inventoryData || []);
+        try {
+            const inventoryData = await inventoryApi.getAll();
+            setInventory(inventoryData || []);
+        } catch (e) {
+            console.error("Error fetching inventory", e);
+        }
 
         // Fetch Recipes
-        const { data: recipesData, error: recipesError } = await supabase
-          .from('recipes')
-          .select('*')
-          .order('created_at', { ascending: true });
+        try {
+            const recipesData = await recipesApi.getAll();
+            // Map snake_case to camelCase for recipes
+            const formattedRecipes = (recipesData || []).map(recipe => ({
+              ...recipe,
+              imageUrl: recipe.image_url,
+            }));
+            setRecipes(formattedRecipes);
+        } catch (e) {
+            console.error("Error fetching recipes", e);
+        }
 
-        if (recipesError) throw recipesError;
-        
-        // Map snake_case to camelCase for recipes
-        const formattedRecipes = (recipesData || []).map(recipe => ({
-          ...recipe,
-          imageUrl: recipe.image_url,
-        }));
-        
-        setRecipes(formattedRecipes);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -140,37 +111,39 @@ export const AppProvider = ({ children }) => {
     };
 
     fetchData();
-  }, [session]);
+  }, [user]);
 
   // Actions
-  const addInventoryItem = async (item) => {
-    if (!session) return;
-    try {
-      const { data, error } = await supabase
-        .from('inventory')
-        .insert([item])
-        .select();
-        
-      if (error) throw error;
-      
-      if (data) {
-        setInventory(prev => [...prev, ...data]);
+  const login = async (email, password) => {
+      try {
+          const data = await auth.login(email, password);
+          setUser(data.user);
+          return true;
+      } catch (error) {
+          console.error("Login failed:", error);
+          throw error;
       }
+  };
+
+  const logout = () => {
+      auth.logout();
+      setUser(null);
+  };
+
+  const addInventoryItem = async (item) => {
+    if (!user) return;
+    try {
+      const newItem = await inventoryApi.add(item);
+      setInventory(prev => [...prev, newItem]);
     } catch (error) {
       console.error('Error adding inventory item:', error);
     }
   };
 
   const removeInventoryItem = async (id) => {
-    if (!session) return;
+    if (!user) return;
     try {
-      const { error } = await supabase
-        .from('inventory')
-        .delete()
-        .eq('id', id);
-        
-      if (error) throw error;
-      
+      await inventoryApi.remove(id);
       setInventory(prev => prev.filter(item => item.id !== id));
     } catch (error) {
       console.error('Error removing inventory item:', error);
@@ -178,28 +151,18 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateInventoryItem = async (id, updates) => {
-    if (!session) return;
+    if (!user) return;
     try {
-      const { data, error } = await supabase
-        .from('inventory')
-        .update(updates)
-        .eq('id', id)
-        .select();
-        
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        setInventory(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
-      }
+      const updatedItem = await inventoryApi.update(id, updates);
+      setInventory(prev => prev.map(item => item.id === id ? updatedItem : item));
     } catch (error) {
       console.error('Error updating inventory item:', error);
     }
   };
 
   const addRecipe = async (recipe) => {
-    if (!session) return null;
+    if (!user) return null;
     try {
-      // Map camelCase to snake_case for DB
       const dbRecipe = {
         name: recipe.name,
         chef: recipe.chef,
@@ -210,21 +173,14 @@ export const AppProvider = ({ children }) => {
         image_url: recipe.imageUrl
       };
 
-      const { data, error } = await supabase
-        .from('recipes')
-        .insert([dbRecipe])
-        .select();
-        
-      if (error) throw error;
+      const newRecipeData = await recipesApi.add(dbRecipe);
       
-      if (data && data.length > 0) {
-        const newRecipe = {
-          ...data[0],
-          imageUrl: data[0].image_url
-        };
-        setRecipes(prev => [...prev, newRecipe]);
-        return newRecipe.id;
-      }
+      const newRecipe = {
+        ...newRecipeData,
+        imageUrl: newRecipeData.image_url
+      };
+      setRecipes(prev => [...prev, newRecipe]);
+      return newRecipe.id;
     } catch (error) {
       console.error('Error adding recipe:', error);
       return null;
@@ -232,15 +188,9 @@ export const AppProvider = ({ children }) => {
   };
 
   const removeRecipe = async (id) => {
-    if (!session) return;
+    if (!user) return;
     try {
-      const { error } = await supabase
-        .from('recipes')
-        .delete()
-        .eq('id', id);
-        
-      if (error) throw error;
-      
+      await recipesApi.remove(id);
       setRecipes(prev => prev.filter(item => item.id !== id));
     } catch (error) {
       console.error('Error removing recipe:', error);
@@ -248,39 +198,29 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateRecipe = async (id, updates) => {
-    if (!session) return;
+    if (!user) return;
     try {
-      // Map updates to snake_case
       const dbUpdates = { ...updates };
       if (updates.imageUrl !== undefined) {
         dbUpdates.image_url = updates.imageUrl;
         delete dbUpdates.imageUrl;
       }
 
-      const { data, error } = await supabase
-        .from('recipes')
-        .update(dbUpdates)
-        .eq('id', id)
-        .select();
-        
-      if (error) throw error;
+      const updatedRecipeData = await recipesApi.update(id, dbUpdates);
       
-      if (data && data.length > 0) {
-        const updatedRecipe = {
-          ...data[0],
-          imageUrl: data[0].image_url
-        };
-        setRecipes(prev => prev.map(item => item.id === id ? updatedRecipe : item));
-      }
+      const updatedRecipe = {
+        ...updatedRecipeData,
+        imageUrl: updatedRecipeData.image_url
+      };
+      setRecipes(prev => prev.map(item => item.id === id ? updatedRecipe : item));
     } catch (error) {
       console.error('Error updating recipe:', error);
     }
   };
 
   const updateSettings = async (newSettings) => {
-    if (!session) return;
+    if (!user) return;
     
-    // Optimistic update
     setSettings(newSettings);
 
     try {
@@ -293,73 +233,52 @@ export const AppProvider = ({ children }) => {
       };
 
       if (newSettings.id) {
-        const { error } = await supabase
-          .from('settings')
-          .update(dbSettings)
-          .eq('id', newSettings.id);
-        if (error) throw error;
-      } else {
-        // Should not happen if fetched correctly, but handle just in case
-        const { data, error } = await supabase
-          .from('settings')
-          .insert([dbSettings])
-          .select()
-          .single();
-        if (error) throw error;
-        if (data) setSettings(prev => ({ ...prev, id: data.id }));
+        await settingsApi.update(newSettings.id, dbSettings);
       }
     } catch (error) {
       console.error('Error updating settings:', error);
-      // Revert or show error? For now just log.
     }
   };
 
   const addCookingLog = async (logData) => {
-    if (!session) return;
-    try {
-      // Convert camelCase to snake_case for DB
-      const dbLog = {
-        meal_name: logData.mealName,
-        menu: logData.menu,
-        ingredients: logData.ingredients,
-        mood_text: logData.moodText,
-        image_url: logData.imageUrl,
-        tags: logData.tags,
-        date: new Date().toISOString()
-      };
+      if (!user) return;
+      try {
+          // Convert camelCase to snake_case for DB
+          const dbLog = {
+            meal_name: logData.mealName,
+            menu: logData.menu,
+            ingredients: logData.ingredients,
+            mood_text: logData.moodText,
+            image_url: logData.imageUrl,
+            tags: logData.tags,
+            date: new Date().toISOString()
+          };
 
-      const { data, error } = await supabase
-        .from('cooking_logs')
-        .insert([dbLog])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        const newLog = {
-          ...data,
-          mealName: data.meal_name,
-          moodText: data.mood_text,
-          imageUrl: data.image_url
-        };
-        setCookingLogs(prev => [newLog, ...prev]);
-        return newLog;
+          const newLogData = await cookingLogsApi.add(dbLog);
+          
+          const newLog = {
+              ...newLogData,
+              mealName: newLogData.meal_name,
+              moodText: newLogData.mood_text,
+              imageUrl: newLogData.image_url
+          };
+          setCookingLogs(prev => [newLog, ...prev]);
+          return newLog;
+      } catch (error) {
+          console.error("Error adding cooking log:", error);
+          throw error;
       }
-    } catch (error) {
-      console.error('Error adding cooking log:', error);
-      throw error;
-    }
   };
 
   const value = {
     user,
-    session,
     inventory,
     recipes,
     settings,
     cookingLogs,
     loading,
+    login,
+    logout,
     addInventoryItem,
     removeInventoryItem,
     updateInventoryItem,

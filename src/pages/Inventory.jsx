@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Snowflake, Sun, Calendar, Minus, Search, Edit2, RefreshCw, Loader2, Image as ImageIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { inventory as inventoryApi } from '../apiClient';
 
 const LOCATIONS = [
   { id: 'fridge-cold', label: '冷藏', icon: Snowflake, color: 'text-blue-500 bg-blue-50' },
@@ -76,35 +77,12 @@ const Inventory = () => {
     
     setIsGeneratingImage(true);
     try {
-      const response = await fetch(`${settings.apiUrl}/images/generations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiToken}`
-        },
-        body: JSON.stringify({
-          model: settings.imageModel || "dall-e-3",
-          prompt: `Generate a rendered image of ${editingItem.name}, one of the smallest counting units, 300x300 size (use suggested size) exquisite modeling, high-definition rendering always with gray 	
-#F5F5F5 background`,
-          n: 1,
-          size: "300x300"
-        })
-      });
-
-      const data = await response.json();
-      if (data.error) {
-          throw new Error(data.error.message);
-      }
-      
-      if (data.data && data.data.length > 0) {
-          const imageUrl = data.data[0].url;
-          setEditingItem(prev => ({ ...prev, image_url: imageUrl }));
-      } else {
-          throw new Error("No image data received");
-      }
+      await inventoryApi.generateImage(editingItem.id);
+      alert('已开始后台生成图片，请稍后刷新页面查看');
+      setEditingItem(null); // Close modal immediately
     } catch (error) {
-      console.error('Image generation failed:', error);
-      alert(`生成失败: ${error.message}`);
+      console.error('Image generation trigger failed:', error);
+      alert(`生成请求失败: ${error.message}`);
     } finally {
       setIsGeneratingImage(false);
     }

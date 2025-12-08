@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { ChefHat, Mail, Lock, ArrowRight, Loader } from 'lucide-react';
 
@@ -8,6 +8,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { login } = useApp();
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -16,12 +17,7 @@ const Login = () => {
     setError(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
+      await login(email, password);
       
       // Navigate to dashboard on success
       navigate('/');

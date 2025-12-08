@@ -23,7 +23,8 @@ import {
   CloudSnow,
   CloudLightning,
   Wind,
-  Droplets
+  Droplets,
+  Settings as SettingsIcon
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -173,10 +174,17 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
+
+            <Link to="/settings" className="md:hidden p-2 bg-gray-100 rounded-full">
+              <SettingsIcon size={20} className="text-gray-600" />
+            </Link>
           </div>
           
-          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tight flex items-center gap-4">
             {greeting}，大厨
+            <Link to="/settings" className="hidden md:flex items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors" title="系统设置">
+              <SettingsIcon size={24} className="text-gray-600" />
+            </Link>
           </h1>
         </div>
         

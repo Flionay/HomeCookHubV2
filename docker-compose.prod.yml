@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    # 使用之前 load 进来的镜像名称
+    image: homecookhub-backend:latest
+    container_name: homecookhub-backend
+    platform: linux/amd64
+    volumes:
+      # 数据持久化映射
+      - ./data:/app/data
+      - ./static_uploads:/app/static
+    environment:
+      - DB_PATH=/app/data/homecook.db
+      - STATIC_DIR=/app/static
+      - STATIC_IMAGE_DIR=/app/static/images
+      # 如果有其他后端配置，如 SECRET_KEY，可以在这里添加
+      - APP_BASE_URL=
+    ports:
+      - "8000:8000"
+    restart: always
+
+  frontend:
+    # 使用之前 load 进来的镜像名称
+    image: homecookhub-frontend:latest
+    container_name: homecookhub-frontend
+    platform: linux/amd64
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: always

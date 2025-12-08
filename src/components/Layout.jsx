@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Refrigerator, BookOpen, ChefHat, Settings, LayoutDashboard, LogOut, Camera, UtensilsCrossed } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { useApp } from '../context/AppContext';
 import CookingCart from './CookingCart';
 
 const Layout = ({ children }) => {
   const location = useLocation();
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const { logout } = useApp();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    logout();
   };
 
   const navItems = [
